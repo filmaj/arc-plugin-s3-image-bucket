@@ -1,0 +1,15 @@
+{
+  "name": "arc-plugin-s3-image-bucket-example",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "@architect/architect": "^8.5.0-RC.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Filip Maj",
+  "license": "Apache-2.0"
+}
