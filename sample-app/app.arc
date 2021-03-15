@@ -15,10 +15,10 @@ CORS1
   MaxAge 3000
 LambdaCreateHook
   EventObjectCreated s3:ObjectCreated:* 
-  EventObjectCreated.RulePrefix prefix raw
+  EventObjectCreated.Rule prefix raw
 LambdaDeleteHook
   EventObjectRemoved s3:ObjectRemoved:*
-  EventObjectRemoved.RulePrefix prefix raw
+  EventObjectRemoved.Rule prefix raw
 
 
 @plugins

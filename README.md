@@ -31,7 +31,12 @@ S3](https://leonid.shevtsov.me/post/demystifying-s3-browser-upload/).
    your bucket, any Lambda triggers and their behaviours. See the
    [Usage](#usage) section for details.
 4. If you defined any Lambda triggers, run `arc create` to generate the source
-   directories for the Lambda triggers.
+   directories for the Lambda triggers. These will be created under
+   `src/image-bucket`. Lambda triggers will have ImageMagick binaries installed
+   thanks to a [publicly available Lambda Layer][im-layer]. If you intend to use
+   ImageMagick, it is recommended to bump the memory allocated to the Lambda
+   trigger by customizing the `config.arc` file inside the Lambda trigger source
+   directory.
 5. Edit each trigger Lambda's `index.js` file, just as you would any classic arc
    `@http`, `@events`, etc. function.
 6. Run locally via `arc sandbox`, or deploy to AWS with `arc deploy`.
@@ -46,7 +51,7 @@ unindented, directly under the `@image-bucket` pragma in your `app.arc` file.
 |---|---|---|
 |`StaticWebsite`|Configures static hosting for assets housed in the bucket. Useful for serving user-uploaded content directly from the bucket. You can optionally specify one or more URL patterns after this property to denote [referrer conditions][ref-condition] that must be obeyed on GET requests to the contents of the bucket (see the `Condition` property at the end of [this S3 Policy example][ref-docs] for details). **NOTE**: this will expose your bucket contents to the internet!|`StaticWebsite https://staging.myapp.com/*`|
 |`CORS<index>`|Configure CORS rules for the bucket. The property name _must_ start with `CORS`. If you want to include multiple CORS rules, then each CORS property name must be unique and thus needs a unique suffix (i.e. `CORS1`, `CORS2`, etc.). Specify the [AWS Cloudformation-supported S3 CORS Rules Properties][cors], indented and one per line, below the CORS property name.|<pre>CORS1<br>&nbsp;&nbsp;AllowedHeaders *<br>&nbsp;&nbsp;AllowedMethods GET POST<br>&nbsp;&nbsp;AllowedOrigins *<br>CORS2<br>&nbsp;&nbsp;AllowedHeaders *<br>&nbsp;&nbsp;AllowedMethods PUT<br>&nbsp;&nbsp;AllowedOrigins https://staging.myapp.com</pre>|
-|`Lambda<index>`|Configure Lambda notification triggers for the bucket. The property name _must_ start with `Lambda`, and if you are setting up more than one, each property starting with `Lambda` must be unique and needs a unique suffix (i.e. `LambdaCreateHook`, `LambdaDeleteHook`, etc.). Each Lambda _must_ specify at least one sub-property indented below the `Lambda` of the form `Event<index>`, which specifies which S3 event triggers the Lambda (see [here][s3-events] for a full list of available events). If more than one `Event` is to be defined, ensure the property name has a unique suffix (i.e. `Event1`, `Event2`, etc.). Optionally, indented under each Lambda, you may specify one or more event filtering `Rule`s associated to `Event`s you have defined. To associate a `Rule` to an `Event`, define the property in the form `Event<index>.Rule<index>` (i.e. `Event1.Rule1`). Follow the `Rule` name with a two space-separated strings: first one of `prefix` or `suffix` followed by the expected prefix or suffix string to filter event notifications by.|<pre>LambdaCreateHook<br>&nbsp;&nbsp;EventObjectCreated s3:ObjectCreated:&#42;<br>&nbsp;&nbsp;EventObjectCreated.RulePrefix prefix raw<br>LambdaDeleteHook<br>&nbsp;&nbsp;EventObjectDeleted s3:ObjectRemoved:&#42;<br>&nbsp;&nbsp;EventObjectDeleted.RulePrefix prefix raw</pre>|
+|`Lambda<index>`|Configure Lambda notification triggers for the bucket. The property name _must_ start with `Lambda`, and if you are setting up more than one, each property starting with `Lambda` must be unique and needs a unique suffix (i.e. `LambdaCreateHook`, `LambdaDeleteHook`, etc.). Each Lambda _must_ specify at least one sub-property indented below the `Lambda` of the form `Event<index>`, which specifies which S3 event triggers the Lambda (see [here][s3-events] for a full list of available events). If more than one `Event` is to be defined, ensure the property name has a unique suffix (i.e. `Event1`, `Event2`, etc.). Optionally, indented under each Lambda, you may specify one or more event filtering `Rule`s associated to `Event`s you have defined. To associate a `Rule` to an `Event`, define the property in the form `Event<index>.Rule` (i.e. `Event1.Rule`). Follow the `Rule` with a two space-separated strings: first one of `prefix` or `suffix` followed by the expected prefix or suffix string to filter event notifications by (these map to [S3 Filter Rules - click here for more details][s3-filter-rules]).|<pre>LambdaCreateHook<br>&nbsp;&nbsp;EventObjectCreated s3:ObjectCreated:&#42;<br>&nbsp;&nbsp;EventObjectCreated.Rule prefix raw<br>LambdaDeleteHook<br>&nbsp;&nbsp;EventObjectDeleted s3:ObjectRemoved:&#42;<br>&nbsp;&nbsp;EventObjectDeleted.Rule prefix raw</pre>|
 
 
 ## Sample Application
@@ -98,3 +103,5 @@ Thanks for considering contributing to this project! Check out the
 [ref-docs]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-policy.html#aws-properties-s3-policy--examples
 [ref-condition]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html#condition-keys-referer
 [s3-events]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-how-to-event-types-and-destinations.html#supported-notification-event-types
+[s3-filter-rule]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationconfiguration-config-filter-s3key-rules.html
+[im-layer]: https://serverlessrepo.aws.amazon.com/applications/arn:aws:serverlessrepo:us-east-1:145266761615:applications~image-magick-lambda-layer
