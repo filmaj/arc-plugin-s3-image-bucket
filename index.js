@@ -14,17 +14,80 @@ module.exports = {
       Type: 'String',
       Default: `${arc.app}-image-bucket`
     };
+    // our glorious bucket
     cfn.Resources.ImageBucket = {
       Type: 'AWS::S3::Bucket',
+      DependsOn: [],
       Properties: {
         BucketName: {
           Ref: 'ImageBucketName'
         }
       }
     };
+    // give the overarching arc app role access to the bucket
+    cfn.Resources.Role.Properties.Policies.push({
+      PolicyName: 'ImageBucketAccess',
+      PolicyDocument: {
+        Statement: [ {
+          Effect: 'Allow',
+          Action: [
+            's3:GetObject',
+            's3:PutObject',
+            's3:DeleteObject',
+            's3:PutObjectAcl',
+            's3:ListBucket'
+          ],
+          Resource: [ {
+            'Fn::Join': [ '', [ 'arn:aws:s3:::', { Ref: 'ImageBucketName' } ] ]
+          }, {
+            'Fn::Join': [ '', [ 'arn:aws:s3:::', { Ref: 'ImageBucketName' }, '/*' ] ]
+          } ]
+        } ]
+      }
+    });
+    // create a minimal IAM user that clients will use to upload to the bucket
+    cfn.Resources.ImageBucketUploader = {
+      Type: 'AWS::IAM::User',
+      Properties: {}
+    };
+    // grand it minimal permissions to upload
+    cfn.Resources.UploadMinimalPolicy = {
+      Type: 'AWS::IAM::Policy',
+      DependsOn: {
+        Ref: 'ImageBucketName'
+      },
+      Properties: {
+        PolicyName: 'UploadPolicy',
+        PolicyDocument: {
+          Statement: [ {
+            Effect: 'Allow',
+            Action: [
+              's3:PutObject',
+              's3:PutObjectAcl'
+            ],
+            Resource: [ {
+              'Fn::Join': [ '', [ 'arn:aws:s3:::', { Ref: 'ImageBucketName' } ] ]
+            }, {
+              'Fn::Join': [ '', [ 'arn:aws:s3:::', { Ref: 'ImageBucketName' }, '/*' ] ]
+            } ]
+          } ]
+        },
+        Users: [ { Ref: 'Uploader' } ],
+      }
+    };
+    // create a secret key that will be used by randos on the internet
+    cfn.Resources.Creds = {
+      Type: 'AWS::IAM::AccessKey',
+      DependsOn: 'ImageBucketUploader',
+      Properties: {
+        UserName: { Ref: 'ImageBucketUploader' }
+      }
+    };
+    // should the bucket be set up for static hosting?
     if (options.StaticWebsite) {
       cfn.Resources.ImageBucket.Properties.WebsiteConfiguration = {};
       if (Array.isArray(options.StaticWebsite)) {
+        // optional referer conditions provided
         let refs = options.StaticWebsite.slice(1);
         cfn.Resources.ImageBucketPolicy = {
           Type: 'AWS::S3::BucketPolicy',
@@ -57,11 +120,13 @@ module.exports = {
         };
       }
     }
+    // CORS access rules for the bucket
     if (options.CORS) {
       cfn.Resources.ImageBucket.Properties.CorsConfiguration = {
         CorsRules: options.CORS
       };
     }
+    // set up lambda triggers
     if (options.lambdas && options.lambdas.length) {
       // drop a reference to ImageMagick binaries as a Lamda Layer via a nested stack
       // App: https://serverlessrepo.aws.amazon.com/applications/arn:aws:serverlessrepo:us-east-1:145266761615:applications~image-magick-lambda-layer
@@ -100,7 +165,8 @@ module.exports = {
           lambdaConfigs.push(cfg);
         });
         // give the image bucket permission to invoke each lambda trigger
-        cfn.Resources[`${functionName}InvokePermission`] = {
+        const invokePerm = `${functionName}InvokePermission`;
+        cfn.Resources[invokePerm] = {
           Type: 'AWS::Lambda::Permission',
           Properties: {
             FunctionName: { 'Fn:GetAtt': [ functionName, 'Arn' ] },
@@ -111,12 +177,17 @@ module.exports = {
             }
           }
         };
+        cfn.Resources.ImageBucket.DependsOn.push(invokePerm);
       });
       // wire up s3 notification events for lambdas
       cfn.Resources.ImageBucket.Properties.NotificationConfiguration = {
         LambdaConfigurations: lambdaConfigs
       };
     }
+    // 
+    // TODO: add the s3 bucket url to the cfn outputs. maybe take into account
+    // `StaticWebsite` option and reflect the url based on that?
+
   },
   pluginFunctions: function s3ImageBucketLambdas ({ arc, inventory }) {
     if (!arc['image-bucket']) return [];
