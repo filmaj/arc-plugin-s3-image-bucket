@@ -50,8 +50,8 @@ unindented, directly under the `@image-bucket` pragma in your `app.arc` file.
 |Option|Description|Example|
 |---|---|---|
 |`StaticWebsite`|Configures static hosting for assets housed in the bucket. Useful for serving user-uploaded content directly from the bucket. You can optionally specify one or more URL patterns after this property to denote [referrer conditions][ref-condition] that must be obeyed on GET requests to the contents of the bucket (see the `Condition` property at the end of [this S3 Policy example][ref-docs] for details). **NOTE**: this will expose your bucket contents to the internet!|`StaticWebsite https://staging.myapp.com/*`|
-|`CORS<index>`|Configure CORS rules for the bucket. The property name _must_ start with `CORS`. If you want to include multiple CORS rules, then each CORS property name must be unique and thus needs a unique suffix (i.e. `CORS1`, `CORS2`, etc.). Specify the [AWS Cloudformation-supported S3 CORS Rules Properties][cors], indented and one per line, below the CORS property name.|<pre>CORS1<br>&nbsp;&nbsp;AllowedHeaders *<br>&nbsp;&nbsp;AllowedMethods GET POST<br>&nbsp;&nbsp;AllowedOrigins *<br>CORS2<br>&nbsp;&nbsp;AllowedHeaders *<br>&nbsp;&nbsp;AllowedMethods PUT<br>&nbsp;&nbsp;AllowedOrigins https://staging.myapp.com</pre>|
-|`Lambda<index>`|Configure Lambda notification triggers for the bucket. The property name _must_ start with `Lambda`, and if you are setting up more than one, each property starting with `Lambda` must be unique and needs a unique suffix (i.e. `LambdaCreateHook`, `LambdaDeleteHook`, etc.). Each Lambda _must_ specify at least one sub-property indented below the `Lambda` of the form `Event<index>`, which specifies which S3 event triggers the Lambda (see [here][s3-events] for a full list of available events). If more than one `Event` is to be defined, ensure the property name has a unique suffix (i.e. `Event1`, `Event2`, etc.). Optionally, indented under each Lambda, you may specify one or more event filtering `Rule`s associated to `Event`s you have defined. To associate a `Rule` to an `Event`, define the property in the form `Event<index>.Rule` (i.e. `Event1.Rule`). Follow the `Rule` with a two space-separated strings: first one of `prefix` or `suffix` followed by the expected prefix or suffix string to filter event notifications by (these map to [S3 Filter Rules - click here for more details][s3-filter-rules]).|<pre>LambdaCreateHook<br>&nbsp;&nbsp;EventObjectCreated s3:ObjectCreated:&#42;<br>&nbsp;&nbsp;EventObjectCreated.Rule prefix raw<br>LambdaDeleteHook<br>&nbsp;&nbsp;EventObjectDeleted s3:ObjectRemoved:&#42;<br>&nbsp;&nbsp;EventObjectDeleted.Rule prefix raw</pre>|
+|`CORS`|Configure CORS rules for the bucket. You can add multiple CORS rule sets by defining this option multiple times (you can also add characters after `CORS` for this option; helpful for naming / documenting the rules if you are using multiple CORS rule sets). Specify the [AWS Cloudformation-supported S3 CORS Rules Properties][cors], indented and one per line, below each CORS option name.|<pre>CORS<br>&nbsp;&nbsp;AllowedHeaders *<br>&nbsp;&nbsp;AllowedMethods GET POST<br>&nbsp;&nbsp;AllowedOrigins *<br>CORSStagingPut<br>&nbsp;&nbsp;AllowedHeaders *<br>&nbsp;&nbsp;AllowedMethods PUT<br>&nbsp;&nbsp;AllowedOrigins https://staging.myapp.com</pre>|
+|`Lambda<name>`|Configure Lambda notification triggers for the bucket. You can configure multiple Lambda triggers by adding this option multiple times. The option name must start with `Lambda` and must be proceeded by more characters; this suffix will be used to differentiate between Lambdas (and generate their name and source directory path). Each Lambda _must_ specify at least one sub-property indented below the `Lambda` which specifies which S3 event triggers the Lambda (see [here][s3-events] for a full list of available events). Optionally, after the S3 event string, you may specify one or more event filtering rules associated to `Event`s you have defined. Follow the S3 event string with two space-separated strings: first one of `prefix` or `suffix` followed by the expected prefix or suffix string to filter event notifications by (these map to [S3 Filter Rules - click here for more details][s3-filter-rules]). You may add up to two prefix-path string pairs, and you can only add them.|<pre>LambdaRawImageHandler<br>&nbsp;&nbsp;s3:ObjectCreated:&#42; prefix raw<br>&nbsp;&nbsp;s3:ObjectRemoved:&#42; prefix raw<br>LambdaOnPngUpload<br>&nbsp;&nbsp;s3:ObjectRemoved:&#42; suffix png</pre>|
 
 
 ## Sample Application
@@ -62,37 +62,12 @@ the internet via `arc deploy`.
 
 ### Testing Locally
 
-This plugin extends `arc sandbox` to provide a local development experience:
-
-1. Kick up the local development environment by running the sandbox: `arc sandbox`
-   (note the additional message logged out by Sandbox informing you of an
-   additional local IoT service starting up).
-2. Load up http://localhost:3333 - the JSON array at the bottom of the page
-   lists out all IoT events received on the IoT Rule Topic. It should initially
-   be empty.
-3. With sandbox running, press the "i" key to trigger an IoT Rule. You will be
-   prompted to choose an IoT Rule (the sample app contains only a single rule),
-   then to enter a JSON object as a payload to deliver to the rule.
-4. Reload http://localhost:3333 - your JSON payload should be listed at the
-   bottom of the page.
+TODO: want to get local s3 mock up for sure
+Might be complicated, need to take the StaticWebsite into account
 
 ### Testing the Deployed Version
 
-The sample application is ready deploy to staging via `arc deploy`. Then:
-
-1. Load the URL of your deployed app; note the JSON array at the bottom of the
-   page and the objects it contains (if this is the first time you have
-   deployed, it will be empty).
-1. Head to the [IoT Core Console's MQTT Test Page](https://us-west-1.console.aws.amazon.com/iot/home?region=us-west-1#/test)
-   (sometimes, soon after deployment, this test console will not be ready as a red
-   banner will inform you; if you find that, give it a few minutes and refresh the
-   page). From the IoT Core page on AWS, click the "Test" menu link on the left.
-2. Click "Publish to a topic."
-3. In the topic input field, enter 'hithere' (it should match the `FROM` clause
-   of the `@rules` section of `app.arc`). Optionally, customize the message
-   payload.
-4. Load the deployed URL of the app, and a list of all messages sent to the
-   `hithere` topic should be displayed.
+TODO: The sample application is ready deploy to staging via `arc deploy`. Then:
 
 # Contributing
 

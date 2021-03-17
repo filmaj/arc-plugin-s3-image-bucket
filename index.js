@@ -10,9 +10,19 @@ module.exports = {
     if (!arc['image-bucket']) return cfn;
     if (!cfn.Parameters) cfn.Parameters = {};
     let options = opts(arc['image-bucket']);
+    // parameter for the bucket name, we'll use this everywhere below
     cfn.Parameters.ImageBucketName = {
       Type: 'String',
       Default: `${arc.app}-image-bucket`
+    };
+    // also export as SSM parameter for service discovery purposes
+    cfn.Resources.ImageBucketParam = {
+      Type: 'AWS::SSM::Parameter',
+      Properties: {
+        Type: 'String',
+        Name: { 'Fn::Sub': '/${AWS::StackName}/imagebucket/name' },
+        Value: { Ref: 'ImageBucketName' }
+      }
     };
     // our glorious bucket
     cfn.Resources.ImageBucket = {
@@ -53,9 +63,7 @@ module.exports = {
     // grand it minimal permissions to upload
     cfn.Resources.UploadMinimalPolicy = {
       Type: 'AWS::IAM::Policy',
-      DependsOn: {
-        Ref: 'ImageBucketName'
-      },
+      DependsOn: 'ImageBucket',
       Properties: {
         PolicyName: 'UploadPolicy',
         PolicyDocument: {
@@ -72,17 +80,35 @@ module.exports = {
             } ]
           } ]
         },
-        Users: [ { Ref: 'Uploader' } ],
+        Users: [ { Ref: 'ImageBucketUploader' } ],
       }
     };
     // create a secret key that will be used by randos on the internet
-    cfn.Resources.Creds = {
+    cfn.Resources.ImageBucketCreds = {
       Type: 'AWS::IAM::AccessKey',
       DependsOn: 'ImageBucketUploader',
       Properties: {
         UserName: { Ref: 'ImageBucketUploader' }
       }
     };
+    // expose the key and secret for above user in the service map
+    cfn.Resources.ImageBucketKeyParam = {
+      Type: 'AWS::SSM::Parameter',
+      Properties: {
+        Type: 'String',
+        Name: { 'Fn::Sub': '/${AWS::StackName}/imagebucket/accessKey' },
+        Value: { Ref: 'ImageBucketCreds' }
+      }
+    };
+    cfn.Resources.ImageBucketSecretParam = {
+      Type: 'AWS::SSM::Parameter',
+      Properties: {
+        Type: 'String',
+        Name: { 'Fn::Sub': '/${AWS::StackName}/imagebucket/secretKey' },
+        Value: { 'Fn::GetAtt': [ 'ImageBucketCreds', 'SecretAccessKey' ] }
+      }
+    };
+
     // should the bucket be set up for static hosting?
     if (options.StaticWebsite) {
       cfn.Resources.ImageBucket.Properties.WebsiteConfiguration = {};
@@ -156,11 +182,11 @@ module.exports = {
         let events = Object.keys(lambda.events);
         events.forEach(event => {
           let cfg = {
-            Function: { 'Fn:GetAtt': [ functionName, 'Arn' ] },
+            Function: { 'Fn::GetAtt': [ functionName, 'Arn' ] },
             Event: event
           };
           if (lambda.events[event] && lambda.events[event].length) {
-            cfg.Filter = { S3Key: { Rules: lambda.events[event] } };
+            cfg.Filter = { S3Key: { Rules: lambda.events[event].map(filterPair => ({ Name: filterPair[0], Value: filterPair[1] })) } };
           }
           lambdaConfigs.push(cfg);
         });
@@ -169,7 +195,7 @@ module.exports = {
         cfn.Resources[invokePerm] = {
           Type: 'AWS::Lambda::Permission',
           Properties: {
-            FunctionName: { 'Fn:GetAtt': [ functionName, 'Arn' ] },
+            FunctionName: { 'Fn::GetAtt': [ functionName, 'Arn' ] },
             Action: 'lambda:InvokeFunction',
             Principal: 's3.amazonaws.com',
             SourceArn: {
@@ -184,10 +210,9 @@ module.exports = {
         LambdaConfigurations: lambdaConfigs
       };
     }
-    // 
     // TODO: add the s3 bucket url to the cfn outputs. maybe take into account
     // `StaticWebsite` option and reflect the url based on that?
-
+    return cfn;
   },
   pluginFunctions: function s3ImageBucketLambdas ({ arc, inventory }) {
     if (!arc['image-bucket']) return [];
@@ -217,6 +242,11 @@ function opts (pragma) {
       let key = Object.keys(opt)[0];
       if (key.startsWith('CORS')) {
         if (!obj.CORS) obj.CORS = [];
+        let corsRules = opt[key];
+        Object.keys(corsRules).forEach(k => {
+          // All CORS options must be arrays, even for singular items
+          if (typeof corsRules[k] === 'string') corsRules[k] = [ corsRules[k] ];
+        });
         obj.CORS.push(opt[key]);
       } else if (key.startsWith('Lambda')) {
         if (!obj.lambdas) obj.lambdas = [];
@@ -225,16 +255,13 @@ function opts (pragma) {
           events: {}
         };
         let props = opt[key];
-        let sortedProps = Object.keys(props).sort(a => a.indexOf('.')); // sort events before filtering rules (which rely on events)
-        sortedProps.forEach(p => {
-          if (p.indexOf('.')) {
-            // handle filtering rule
-            let names = p.split('.');
-            let eventName = names[0];
-            lambda.events[eventName].push({ Name: props[p][0], Value: props[p][1] });
-          } else {
-            // handle event
-            lambda.events[props[p]] = [];
+        let lambdaKeys = Object.keys(props);
+        lambdaKeys.forEach(eventName => {
+          let filterPairs = props[eventName];
+          lambda.events[eventName] = [];
+          for (let i = 0; i < filterPairs.length - 1; i++) {
+            if (i % 2 === 1) continue;
+            lambda.events[eventName].push([ filterPairs[i], filterPairs[i + 1] ]);
           }
         });
         obj.lambdas.push(lambda);
@@ -242,6 +269,7 @@ function opts (pragma) {
         obj[key] = opt[key];
       }
     }
+    return obj;
   }, {});
 }
 

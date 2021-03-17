@@ -8,18 +8,15 @@ get /
 
 @image-bucket
 StaticWebsite
-CORS1
+CORS
   AllowedHeaders *
   AllowedMethods GET POST
   AllowedOrigins *
   MaxAge 3000
-LambdaCreateHook
-  EventObjectCreated s3:ObjectCreated:* 
-  EventObjectCreated.Rule prefix raw
-LambdaDeleteHook
-  EventObjectRemoved s3:ObjectRemoved:*
-  EventObjectRemoved.Rule prefix raw
-
+LambdaOnImageCreate
+  s3:ObjectCreated:* prefix raw
+LambdaOnImageRemove
+  s3:ObjectRemoved:* prefix raw
 
 @plugins
 arc-plugin-s3-image-bucket
