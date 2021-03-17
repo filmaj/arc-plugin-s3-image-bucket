@@ -8,20 +8,15 @@ const createLambdaJSON = require('@architect/package/createLambdaJSON');
 module.exports = {
   package: function s3ImageBucketPackage ({ arc, cloudformation: cfn, /* stage = 'staging',*/ inventory }) {
     if (!arc['image-bucket']) return cfn;
-    if (!cfn.Parameters) cfn.Parameters = {};
     let options = opts(arc['image-bucket']);
-    // parameter for the bucket name, we'll use this everywhere below
-    cfn.Parameters.ImageBucketName = {
-      Type: 'String',
-      Default: `${arc.app}-image-bucket`
-    };
+    const bukkit = `${arc.app}-image-buket`;
     // also export as SSM parameter for service discovery purposes
     cfn.Resources.ImageBucketParam = {
       Type: 'AWS::SSM::Parameter',
       Properties: {
         Type: 'String',
         Name: { 'Fn::Sub': '/${AWS::StackName}/imagebucket/name' },
-        Value: { Ref: 'ImageBucketName' }
+        Value: bukkit
       }
     };
     // our glorious bucket
@@ -29,9 +24,7 @@ module.exports = {
       Type: 'AWS::S3::Bucket',
       DependsOn: [],
       Properties: {
-        BucketName: {
-          Ref: 'ImageBucketName'
-        }
+        BucketName: bukkit
       }
     };
     // give the overarching arc app role access to the bucket
@@ -48,9 +41,9 @@ module.exports = {
             's3:ListBucket'
           ],
           Resource: [ {
-            'Fn::Join': [ '', [ 'arn:aws:s3:::', { Ref: 'ImageBucketName' } ] ]
+            'Fn::Join': [ '', [ 'arn:aws:s3:::', bukkit ] ]
           }, {
-            'Fn::Join': [ '', [ 'arn:aws:s3:::', { Ref: 'ImageBucketName' }, '/*' ] ]
+            'Fn::Join': [ '', [ 'arn:aws:s3:::', bukkit, '/*' ] ]
           } ]
         } ]
       }
@@ -74,9 +67,9 @@ module.exports = {
               's3:PutObjectAcl'
             ],
             Resource: [ {
-              'Fn::Join': [ '', [ 'arn:aws:s3:::', { Ref: 'ImageBucketName' } ] ]
+              'Fn::Join': [ '', [ 'arn:aws:s3:::', bukkit ] ]
             }, {
-              'Fn::Join': [ '', [ 'arn:aws:s3:::', { Ref: 'ImageBucketName' }, '/*' ] ]
+              'Fn::Join': [ '', [ 'arn:aws:s3:::', bukkit, '/*' ] ]
             } ]
           } ]
         },
@@ -111,19 +104,17 @@ module.exports = {
 
     // should the bucket be set up for static hosting?
     if (options.StaticWebsite) {
-      cfn.Resources.ImageBucket.Properties.WebsiteConfiguration = {};
+      cfn.Resources.ImageBucket.Properties.WebsiteConfiguration = {
+        IndexDocument: 'index.html'
+      };
       if (Array.isArray(options.StaticWebsite)) {
         // optional referer conditions provided
         let refs = options.StaticWebsite.slice(1);
         cfn.Resources.ImageBucketPolicy = {
           Type: 'AWS::S3::BucketPolicy',
-          DependsOn: {
-            Ref: 'ImageBucketName'
-          },
+          DependsOn: bukkit,
           Properties: {
-            Bucket: {
-              Ref: 'ImageBucketName'
-            },
+            Bucket: bukkit,
             PolicyDocument: {
               Statement: [ {
                 Action: [ 's3:GetObject' ],
@@ -131,7 +122,7 @@ module.exports = {
                 Resource: {
                   'Fn::Join': [
                     '',
-                    [ 'arn:aws:s3:::', { Ref: 'ImageBucketName' }, '/*' ]
+                    [ 'arn:aws:s3:::', bukkit, '/*' ]
                   ]
                 },
                 Principal: '*',
@@ -194,13 +185,13 @@ module.exports = {
         const invokePerm = `${functionName}InvokePermission`;
         cfn.Resources[invokePerm] = {
           Type: 'AWS::Lambda::Permission',
+          DependsOn: functionName,
           Properties: {
             FunctionName: { 'Fn::GetAtt': [ functionName, 'Arn' ] },
             Action: 'lambda:InvokeFunction',
             Principal: 's3.amazonaws.com',
-            SourceArn: {
-              'Fn::Join': [ '', [ 'arn:aws:s3:::', { Ref: 'ImageBucketName' }, '/*' ] ]
-            }
+            SourceAccount: { Ref: 'AWS::AccountId' },
+            SourceArn: `arn:aws:s3:::${bukkit}`
           }
         };
         cfn.Resources.ImageBucket.DependsOn.push(invokePerm);
