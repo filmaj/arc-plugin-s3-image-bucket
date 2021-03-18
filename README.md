@@ -76,6 +76,7 @@ sets.
 indented and one per line:
 
 |Sub-Option|Description|Example|
+|---|---|---|
 |`AllowedHeaders`|[See AWS documentation for `AllowedHeaders`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-cors-corsrule.html#cfn-s3-bucket-cors-corsrule-allowedheaders)|<pre>CORS<br>&nbsp;&nbsp;AllowedHeaders *</pre>|
 |`AllowedMethods`|[See AWS documentation for `AllowedMethods`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-cors-corsrule.html#cfn-s3-bucket-cors-corsrule-allowedmethods)|<pre>CORS<br>&nbsp;&nbsp;AllowedMethods GET POST</pre>|
 |`AllowedOrigins`|[See AWS documentation for `AllowedOrigins`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-cors-corsrule.html#cfn-s3-bucket-cors-corsrule-allowedorigins)|<pre>CORS<br>&nbsp;&nbsp;AllowedOrigins https://myapp.com https://*.myapp.com</pre>|
@@ -96,6 +97,7 @@ below the `Lambda` which specifies which S3 event triggers the Lambda (see
 `Lambda` supports the following sub-options:
 
 |Sub-Option|Description|Example|
+|---|---|---|
 |`<event-name> [prefix|suffix] [path]`|Each Lambda _must_ specify an S3 event name that will trigger the Lambda (see [here][s3-events] for a full list of available events). Optionally, after the S3 event name, you may specify one or more event filtering rules associated to the event. Follow the S3 event string with pairs of space-separated strings: first one of `prefix` or `suffix` followed by the expected prefix or suffix string to filter event notifications by (these map to [S3 Filter Rules - click here for more details][s3-filter-rules]). You may add up to two prefix-path string pairs, and you can add up to a maximum of one `prefix` and one `suffix` filter rule.|<pre>LambdaRawImageHandler<br>&nbsp;&nbsp;s3:ObjectCreated:&#42; prefix raw<br>&nbsp;&nbsp;s3:ObjectRemoved:&#42; prefix raw<br>LambdaOnPngUpload<br>&nbsp;&nbsp;s3:ObjectCreated:&#42; suffix png</pre>|
 
 ## Sample Application
