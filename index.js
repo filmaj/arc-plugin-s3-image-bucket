@@ -111,7 +111,7 @@ module.exports = {
       // let refs = options.StaticWebsite.slice(1);
       cfn.Resources.ImageBucketPolicy = {
         Type: 'AWS::S3::BucketPolicy',
-        DependsOn: bukkit,
+        DependsOn: 'ImageBucket',
         Properties: {
           Bucket: bukkit,
           PolicyDocument: {
