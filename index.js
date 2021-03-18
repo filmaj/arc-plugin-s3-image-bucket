@@ -124,7 +124,7 @@ module.exports = {
                   [ 'arn:aws:s3:::', bukkit, '/*' ]
                 ]
               },
-              Principal: '*',
+              Principal: '*'
               /*
               Condition: {
                 StringLike: {
@@ -136,7 +136,6 @@ module.exports = {
           }
         }
       };
-      }
     }
     // CORS access rules for the bucket
     if (options.CORS) {
