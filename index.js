@@ -107,34 +107,35 @@ module.exports = {
       cfn.Resources.ImageBucket.Properties.WebsiteConfiguration = {
         IndexDocument: 'index.html'
       };
-      if (Array.isArray(options.StaticWebsite)) {
-        // optional referer conditions provided
-        let refs = options.StaticWebsite.slice(1);
-        cfn.Resources.ImageBucketPolicy = {
-          Type: 'AWS::S3::BucketPolicy',
-          DependsOn: bukkit,
-          Properties: {
-            Bucket: bukkit,
-            PolicyDocument: {
-              Statement: [ {
-                Action: [ 's3:GetObject' ],
-                Effect: 'Allow',
-                Resource: {
-                  'Fn::Join': [
-                    '',
-                    [ 'arn:aws:s3:::', bukkit, '/*' ]
-                  ]
-                },
-                Principal: '*',
-                Condition: {
-                  StringLike: {
-                    'aws:Referer': refs
-                  }
+      // TODO: optional referer conditions provided
+      // let refs = options.StaticWebsite.slice(1);
+      cfn.Resources.ImageBucketPolicy = {
+        Type: 'AWS::S3::BucketPolicy',
+        DependsOn: bukkit,
+        Properties: {
+          Bucket: bukkit,
+          PolicyDocument: {
+            Statement: [ {
+              Action: [ 's3:GetObject' ],
+              Effect: 'Allow',
+              Resource: {
+                'Fn::Join': [
+                  '',
+                  [ 'arn:aws:s3:::', bukkit, '/*' ]
+                ]
+              },
+              Principal: '*',
+              /*
+              Condition: {
+                StringLike: {
+                  'aws:Referer': refs
                 }
-              } ]
-            }
+              }
+              */
+            } ]
           }
-        };
+        }
+      };
       }
     }
     // CORS access rules for the bucket

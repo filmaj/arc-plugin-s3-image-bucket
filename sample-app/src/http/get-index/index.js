@@ -1,7 +1,13 @@
 let arc = require('@architect/functions');
+let form = require('./form');
 
-async function getIndex () {
+async function getIndex (req) {
   if (!arc.services) await arc._loadServices();
+  console.log(arc.services);
+  const redirect = `https://${req.headers.Host || req.headers.host}/success`;
+  const { name, accessKey, secretKey } = arc.services.imagebucket;
+  const region = process.env.AWS_REGION;
+  const upload = form({ redirect, bucket: name, accessKey, secretKey, region });
   return {
     headers: {
       'cache-control': 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0',
@@ -17,12 +23,8 @@ async function getIndex () {
       <link rel="stylesheet" href="${arc.static('app.css')}">
     </head>
     <body>
-    <h1>Hi there</h1>
-    <p>Still testing this big time.</p>
-    <h3>Service discovery list:</h3>
-    <pre><code>
-    ${JSON.stringify(arc.services, null, 2)}
-    </code></pre>
+    <h1>Hi! Upload something directly from the browser to the S3 bucket.</h1>
+    ${upload}
     </body>
     </html>`
   };

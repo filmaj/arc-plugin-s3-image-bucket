@@ -12,9 +12,10 @@ clients accessing your webapp by providing a server-side API that generates
 a time-limited signed set of parameters to the client used to issue POST
 requests containing binary payloads directly to the S3 bucket.
 
-This plugin takes heavy inspiration from @brianleroux's
-[macro-upload](https://github.com/architect/macro-upload) Architect macro, which
-itself is based on [Leonid Shevtov's deep dive into enabling direct-from-client
+This plugin takes heavy inspiration / straight up lifting from @brianleroux's
+[macro-upload](https://github.com/architect/macro-upload) and
+[arc-example-macro-upload](https://github.com/architect-examples/arc-example-macro-upload)
+repos, which are based on [Leonid Shevtov's deep dive into enabling direct-from-client
 S3 uploads using browser-based POST requests to
 S3](https://leonid.shevtsov.me/post/demystifying-s3-browser-upload/).
 
@@ -49,7 +50,7 @@ unindented, directly under the `@image-bucket` pragma in your `app.arc` file.
 
 |Option|Description|Example|
 |---|---|---|
-|`StaticWebsite`|Configures static hosting for assets housed in the bucket. Useful for serving user-uploaded content directly from the bucket. You can optionally specify one or more URL patterns after this property to denote [referrer conditions][ref-condition] that must be obeyed on GET requests to the contents of the bucket (see the `Condition` property at the end of [this S3 Policy example][ref-docs] for details). **NOTE**: this will expose your bucket contents to the internet!|`StaticWebsite https://staging.myapp.com/*`|
+|`StaticWebsite`|Configures static hosting for assets housed in the bucket. Useful for serving user-uploaded content directly from the bucket. TODO: You can optionally specify one or more URL patterns after this property to denote [referrer conditions][ref-condition] that must be obeyed on GET requests to the contents of the bucket (see the `Condition` property at the end of [this S3 Policy example][ref-docs] for details). **NOTE**: this will expose your bucket contents to the internet!|`StaticWebsite https://staging.myapp.com/*`|
 |`CORS`|Configure CORS rules for the bucket. You can add multiple CORS rule sets by defining this option multiple times (you can also add characters after `CORS` for this option; helpful for naming / documenting the rules if you are using multiple CORS rule sets). Specify the [AWS Cloudformation-supported S3 CORS Rules Properties][cors], indented and one per line, below each CORS option name.|<pre>CORS<br>&nbsp;&nbsp;AllowedHeaders *<br>&nbsp;&nbsp;AllowedMethods GET POST<br>&nbsp;&nbsp;AllowedOrigins *<br>CORSStagingPut<br>&nbsp;&nbsp;AllowedHeaders *<br>&nbsp;&nbsp;AllowedMethods PUT<br>&nbsp;&nbsp;AllowedOrigins https://staging.myapp.com</pre>|
 |`Lambda<name>`|Configure Lambda notification triggers for the bucket. You can configure multiple Lambda triggers by adding this option multiple times. The option name must start with `Lambda` and must be proceeded by more characters; this suffix will be used to differentiate between Lambdas (and generate their name and source directory path). Each Lambda _must_ specify at least one sub-property indented below the `Lambda` which specifies which S3 event triggers the Lambda (see [here][s3-events] for a full list of available events). Optionally, after the S3 event string, you may specify one or more event filtering rules associated to `Event`s you have defined. Follow the S3 event string with two space-separated strings: first one of `prefix` or `suffix` followed by the expected prefix or suffix string to filter event notifications by (these map to [S3 Filter Rules - click here for more details][s3-filter-rules]). You may add up to two prefix-path string pairs, and you can only add them.|<pre>LambdaRawImageHandler<br>&nbsp;&nbsp;s3:ObjectCreated:&#42; prefix raw<br>&nbsp;&nbsp;s3:ObjectRemoved:&#42; prefix raw<br>LambdaOnPngUpload<br>&nbsp;&nbsp;s3:ObjectRemoved:&#42; suffix png</pre>|
 

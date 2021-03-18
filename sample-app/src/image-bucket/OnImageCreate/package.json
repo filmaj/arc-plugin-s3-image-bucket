@@ -1,15 +1,7 @@
 {
-  "name": "OnImageCreate",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "name": "upload",
   "dependencies": {
-    "@architect/functions": "^3.13.9"
+    "file-type": "^12.3.0",
+    "gm": "^1.23.1"
   }
 }
