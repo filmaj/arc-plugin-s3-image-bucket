@@ -108,12 +108,13 @@ the internet via `arc deploy`.
 
 ### Testing Locally
 
-TODO: want to get local s3 mock up for sure
-Might be complicated, need to take the StaticWebsite into account
+TODO! See issues on how to help.
 
 ### Testing the Deployed Version
 
-TODO: The sample application is ready deploy to staging via `arc deploy`. Then:
+To try the deployed sample out, cd into `sample-app`, run `npm install` and then
+run `arc deploy`. Load the URL outputted after `deploy`, upload an image, see it
+resized to a max 100px width / height!
 
 # Contributing
 
