@@ -9,6 +9,7 @@ get /success
 
 @image-bucket
 StaticWebsite
+  Map "/img/{proxy+}" "/thumb/{proxy}"
 CORS
   AllowedHeaders *
   AllowedMethods GET POST

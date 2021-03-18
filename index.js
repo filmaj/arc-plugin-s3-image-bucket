@@ -107,8 +107,8 @@ module.exports = {
       cfn.Resources.ImageBucket.Properties.WebsiteConfiguration = {
         IndexDocument: 'index.html'
       };
-      // TODO: optional referer conditions provided
-      // let refs = options.StaticWebsite.slice(1);
+      // TODO: support optional referer conditions provided ?
+      // TODO: support exposing only particular sub-paths of the bucket?
       cfn.Resources.ImageBucketPolicy = {
         Type: 'AWS::S3::BucketPolicy',
         DependsOn: 'ImageBucket',
@@ -136,6 +136,30 @@ module.exports = {
           }
         }
       };
+      if (inventory.inv.http && options.StaticWebsite.Map) {
+        // map the image bucket up to api gateway
+        const [ httpRoute, bucketRoute ] = options.StaticWebsite.Map;
+        cfn.Resources.HTTP.Properties.DefinitionBody.paths[httpRoute] = {
+          get: {
+            'x-amazon-apigateway-integration': {
+              payloadFormatVersion: '1.0',
+              type: 'http_proxy',
+              httpMethod: 'GET',
+              uri: {
+                'Fn::Sub': [
+                  'http://${bukkit}.s3.${AWS::Region}.amazonaws.com${proxy}',
+                  {
+                    bukkit,
+                    proxy: bucketRoute
+                  }
+                ]
+              },
+              connectionType: 'INTERNET',
+              timeoutInMillis: 30000
+            }
+          }
+        };
+      }
     }
     // CORS access rules for the bucket
     if (options.CORS) {

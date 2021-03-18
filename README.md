@@ -45,15 +45,58 @@ S3](https://leonid.shevtsov.me/post/demystifying-s3-browser-upload/).
 ## Usage
 
 This plugin creates a single S3 bucket and wires up any number of Lambdas that
-trigger on events created by the bucket. To use the below options, specify them,
-unindented, directly under the `@image-bucket` pragma in your `app.arc` file.
+trigger on events created by the bucket. Below is a list of options that are to
+be specified unindented directly under the `@image-bucket` pragma in your `app.arc`
+file. Each option also accepts sub-options that can be specified indented under
+the option.
 
-|Option|Description|Example|
+### `StaticWebsite`
+
+The `StaticWebsite` option configures public access to your image bucket over HTTP
+or HTTPS. Useful for serving user-uploaded content directly from the bucket. Setting
+this option turns on static website hosting for your S3 bucket, making it accessible
+to the internet.
+
+`StaticWebsite` provides the following sub-options:
+
+|Sub-Option|Description|Example|
 |---|---|---|
-|`StaticWebsite`|Configures static hosting for assets housed in the bucket. Useful for serving user-uploaded content directly from the bucket. TODO: You can optionally specify one or more URL patterns after this property to denote [referrer conditions][ref-condition] that must be obeyed on GET requests to the contents of the bucket (see the `Condition` property at the end of [this S3 Policy example][ref-docs] for details). **NOTE**: this will expose your bucket contents to the internet!|`StaticWebsite https://staging.myapp.com/*`|
-|`CORS`|Configure CORS rules for the bucket. You can add multiple CORS rule sets by defining this option multiple times (you can also add characters after `CORS` for this option; helpful for naming / documenting the rules if you are using multiple CORS rule sets). Specify the [AWS Cloudformation-supported S3 CORS Rules Properties][cors], indented and one per line, below each CORS option name.|<pre>CORS<br>&nbsp;&nbsp;AllowedHeaders *<br>&nbsp;&nbsp;AllowedMethods GET POST<br>&nbsp;&nbsp;AllowedOrigins *<br>CORSStagingPut<br>&nbsp;&nbsp;AllowedHeaders *<br>&nbsp;&nbsp;AllowedMethods PUT<br>&nbsp;&nbsp;AllowedOrigins https://staging.myapp.com</pre>|
-|`Lambda<name>`|Configure Lambda notification triggers for the bucket. You can configure multiple Lambda triggers by adding this option multiple times. The option name must start with `Lambda` and must be proceeded by more characters; this suffix will be used to differentiate between Lambdas (and generate their name and source directory path). Each Lambda _must_ specify at least one sub-property indented below the `Lambda` which specifies which S3 event triggers the Lambda (see [here][s3-events] for a full list of available events). Optionally, after the S3 event string, you may specify one or more event filtering rules associated to `Event`s you have defined. Follow the S3 event string with two space-separated strings: first one of `prefix` or `suffix` followed by the expected prefix or suffix string to filter event notifications by (these map to [S3 Filter Rules - click here for more details][s3-filter-rules]). You may add up to two prefix-path string pairs, and you can only add them.|<pre>LambdaRawImageHandler<br>&nbsp;&nbsp;s3:ObjectCreated:&#42; prefix raw<br>&nbsp;&nbsp;s3:ObjectRemoved:&#42; prefix raw<br>LambdaOnPngUpload<br>&nbsp;&nbsp;s3:ObjectRemoved:&#42; suffix png</pre>|
+|`Map`|Configures an HTTP GET route between your arc app's API Gateway instance and a path on your image bucket. Takes two required string parameters: an API Gateway route (the route web clients will use) and maps it to a route on the bucket. You _must_ use the string `{proxy+}` in the first parameter to denote a variable representing a greedy URL path, and you _must_ use the string `{proxy}` (without the +) in the second parameter to denote how that path maps to a path in your image bucket. Note that you must quote these parameters due to the special character usage. Note that if this sub-option is ommitted, you will only have HTTP access to your bucket contents using the bucket's static website hosting (whereas mapping an API Gateway route to a route on your bucket gives you HTTPS access "for free"). Using this sub-option|<pre>StaticWebsite<br>&nbsp;&nbsp;Map &#34;/img/{proxy+}&#34;&nbsp;&#34;/thumb/{proxy}&#34;</pre>|
 
+### `CORS`
+
+The `CORS` option configures CORS rules for the image bucket.
+
+You can define multiple CORS rule sets by defining this option multiple times.
+You can also add characters after the `CORS` characters for this option; this is
+helpful for naming / documenting the rules if you are using multiple CORS rule
+sets.
+
+`CORS` supports sub-options that map directly to the [AWS Cloudformation-supported S3 CORS Rules Properties][cors],
+indented and one per line:
+
+|Sub-Option|Description|Example|
+|`AllowedHeaders`|[See AWS documentation for `AllowedHeaders`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-cors-corsrule.html#cfn-s3-bucket-cors-corsrule-allowedheaders)|<pre>CORS<br>&nbsp;&nbsp;AllowedHeaders *</pre>|
+|`AllowedMethods`|[See AWS documentation for `AllowedMethods`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-cors-corsrule.html#cfn-s3-bucket-cors-corsrule-allowedmethods)|<pre>CORS<br>&nbsp;&nbsp;AllowedMethods GET POST</pre>|
+|`AllowedOrigins`|[See AWS documentation for `AllowedOrigins`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-cors-corsrule.html#cfn-s3-bucket-cors-corsrule-allowedorigins)|<pre>CORS<br>&nbsp;&nbsp;AllowedOrigins https://myapp.com https://*.myapp.com</pre>|
+|`ExposedHeaders`|[See AWS documentation for `ExposedHeaders`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-cors-corsrule.html#cfn-s3-bucket-cors-corsrule-exposedheaders)|<pre>CORS<br>&nbsp;&nbsp;ExposedHeaders *</pre>|
+|`ExposedHeaders`|[See AWS documentation for `ExposedHeaders`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-cors-corsrule.html#cfn-s3-bucket-cors-corsrule-exposedheaders)|<pre>CORS<br>&nbsp;&nbsp;ExposedHeaders *</pre>|
+|`MaxAge`|[See AWS documentation for `MaxAge`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-cors-corsrule.html#cfn-s3-bucket-cors-corsrule-maxage)|<pre>CORS<br>&nbsp;&nbsp;MaxAge 300</pre>|
+
+### `Lambda`
+
+Configure Lambda notification triggers for the image bucket. You can configure
+multiple Lambda triggers by adding this option multiple times. The option name
+must start with `Lambda` and must be proceeded by more characters; this suffix
+will be used to differentiate between Lambdas (and generate their name and source
+directory path). Each Lambda _must_ specify at least one sub-property indented
+below the `Lambda` which specifies which S3 event triggers the Lambda (see
+[here][s3-events] for a full list of available events).
+
+`Lambda` supports the following sub-options:
+
+|Sub-Option|Description|Example|
+|`<event-name> [prefix|suffix] [path]`|Each Lambda _must_ specify an S3 event name that will trigger the Lambda (see [here][s3-events] for a full list of available events). Optionally, after the S3 event name, you may specify one or more event filtering rules associated to the event. Follow the S3 event string with pairs of space-separated strings: first one of `prefix` or `suffix` followed by the expected prefix or suffix string to filter event notifications by (these map to [S3 Filter Rules - click here for more details][s3-filter-rules]). You may add up to two prefix-path string pairs, and you can add up to a maximum of one `prefix` and one `suffix` filter rule.|<pre>LambdaRawImageHandler<br>&nbsp;&nbsp;s3:ObjectCreated:&#42; prefix raw<br>&nbsp;&nbsp;s3:ObjectRemoved:&#42; prefix raw<br>LambdaOnPngUpload<br>&nbsp;&nbsp;s3:ObjectCreated:&#42; suffix png</pre>|
 
 ## Sample Application
 
