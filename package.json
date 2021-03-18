@@ -40,9 +40,15 @@
   "eslintConfig": {
     "extends": "@architect/eslint-config",
     "rules": {
-      "indent": ["error", 2],
+      "indent": [
+        "error",
+        2
+      ],
       "brace-style": "off",
-      "semi": ["error", "always"]
+      "semi": [
+        "error",
+        "always"
+      ]
     }
   },
   "publishConfig": {
