@@ -14,7 +14,7 @@ const MAX_HEIGHT = 100
  * @param {Buffer} body
  * @returns {Promise}
  */
-module.exports = function thumbnail({bucket, key, mime, ext, body}) {
+module.exports = function thumbnail({bucket, key, mime, ext, body, s3}) {
 
   // early exit if this isn't an image
   let thumb = ext === 'jpg' || ext === 'png'
@@ -38,7 +38,6 @@ module.exports = function thumbnail({bucket, key, mime, ext, body}) {
           else {
 
             // write the buffer to s3 under thumb/
-            let s3 = new aws.S3
             s3.putObject({
               ContentType: mime,
               Bucket: bucket,

@@ -16,7 +16,7 @@ CORS
   AllowedOrigins *
   MaxAge 3000
 LambdaOnImageCreate
-  s3:ObjectCreated:* prefix raw
+  s3:ObjectCreated:Post prefix raw
 
 @plugins
 arc-plugin-s3-image-bucket

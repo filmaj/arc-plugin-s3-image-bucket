@@ -1,14 +1,14 @@
 let arc = require('@architect/functions');
+let getImageBucketS3 = require('@architect/shared/image-bucket-s3.js');
 let form = require('./form');
-const aws = require('aws-sdk');
 
 async function getIndex (req) {
-  if (!arc.services) await arc._loadServices();
-  const redirect = `https://${req.headers.Host || req.headers.host}/success`;
-  const { name, accessKey, secretKey } = arc.services.imagebucket;
+  let services = await arc.services();
+  const redirect = `http${process.env.NODE_ENV === 'testing' ? '' : 's'}://${req.headers.Host || req.headers.host}/success`;
+  const { name, accessKey, secretKey } = services['arc-plugin-s3-image-bucket'];
   const region = process.env.AWS_REGION;
   const upload = form({ redirect, bucket: name, accessKey, secretKey, region });
-  const s3 = new aws.S3;
+  const s3 = await getImageBucketS3(arc);
   const images = await s3.listObjects({ Bucket: name, Prefix: 'thumb/' }).promise();
   const imgTags = images.Contents.map(i => i.Key.replace('thumb/', '/img/')).map(i => `<img src="${i}" />`).join('\n');
   return {

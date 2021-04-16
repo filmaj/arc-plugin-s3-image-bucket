@@ -1,16 +1,16 @@
-let aws = require('aws-sdk');
 let fileType = require('file-type');
 let thumbnail = require('./thumbnail');
+let arc = require('@architect/functions');
+let getImageBucketS3 = require('@architect/shared/image-bucket-s3.js');
 
 /**
  * process one create event
  */
-module.exports = function created (record) {
+module.exports = async function created (record) {
+  let s3 = await getImageBucketS3(arc);
   return new Promise(function ugh (resolve, reject) {
-
-    let s3 = new aws.S3;
-
     // read the uploaded file
+    console.log('retrieving object from s3', record.s3.object.key);
     s3.getObject({
       Bucket: record.s3.bucket.name,
       Key: record.s3.object.key
@@ -39,7 +39,8 @@ module.exports = function created (record) {
         key: record.s3.object.key,
         mime: guess.mime,
         ext: guess.ext,
-        body: result.Body
+        body: result.Body,
+        s3
       });
 
       return Promise.all([ orig, clean, thumb ]);

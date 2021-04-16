@@ -1,24 +1,37 @@
-/*
 const { updater } = require('@architect/utils');
 const update = updater('S3 Image Bucket', {});
-*/
 const { join } = require('path');
 const createLambdaJSON = require('@architect/package/createLambdaJSON');
+const invokeLambda = require('@architect/sandbox/invokeLambda');
+const S3rver = require('s3rver');
+let s3Instance = null;
+const defaultLocalOptions = {
+  port: 4569,
+  address: 'localhost',
+  directory: './buckets', // TODO maybe use os.tmpdir and clean up on shutdown?
+  accessKeyId: 'S3RVER',
+  secretAccessKey: 'S3RVER',
+  allowMismatchedSignatures: true,
+  resetOnClose: true
+};
 
 module.exports = {
+  variables: function s3ImageBucketVars ({ arc, stage /* , inventory */ }) {
+    if (!arc['image-bucket']) return {};
+    const isLocal = stage === 'testing';
+    const bukkit = bucketName(arc.app);
+    // expose the key and secret for above user in the service map
+    return {
+      accessKey: isLocal ? 'S3RVER' : { Ref: 'ImageBucketCreds' },
+      name: bukkit,
+      secretKey: isLocal ? 'S3RVER' : { 'Fn::GetAtt': [ 'ImageBucketCreds', 'SecretAccessKey' ] }
+    };
+  },
   package: function s3ImageBucketPackage ({ arc, cloudformation: cfn, /* stage = 'staging',*/ inventory }) {
     if (!arc['image-bucket']) return cfn;
     let options = opts(arc['image-bucket']);
-    const bukkit = `${arc.app}-image-buket`;
+    const bukkit = bucketName(arc.app);
     // also export as SSM parameter for service discovery purposes
-    cfn.Resources.ImageBucketParam = {
-      Type: 'AWS::SSM::Parameter',
-      Properties: {
-        Type: 'String',
-        Name: { 'Fn::Sub': '/${AWS::StackName}/imagebucket/name' },
-        Value: bukkit
-      }
-    };
     // our glorious bucket
     cfn.Resources.ImageBucket = {
       Type: 'AWS::S3::Bucket',
@@ -137,7 +150,7 @@ module.exports = {
         }
       };
       if (inventory.inv.http && options.StaticWebsite.Map) {
-        // map the image bucket up to api gateway
+        // wire the image bucket up to api gateway
         const [ httpRoute, bucketRoute ] = options.StaticWebsite.Map;
         cfn.Resources.HTTP.Properties.DefinitionBody.paths[httpRoute] = {
           get: {
@@ -237,10 +250,85 @@ module.exports = {
     return options.lambdas.map(lambda => {
       return {
         src: lambdaPath(cwd, lambda.name),
-        body: 'exports.handler = async function (event) { console.log(event); }'
+        body: `exports.handler = async function (event) {
+  // remember this is nodev10 running in here!
+  console.log(event);
+}`
       };
     });
-  }
+  },
+  sandbox: {
+    start: async function ({ arc, inventory, services }) {
+      if (!arc['image-bucket']) return;
+      const bukkit = bucketName(arc.app);
+      let options = opts(arc['image-bucket']);
+      let s3rverOptions = { configureBuckets: [ { name: bukkit } ], ...defaultLocalOptions };
+      // TODO: static website proxy support
+      if (options.StaticWebsite && options.StaticWebsite.Map) {
+        // Configure s3rver for static hosting
+        s3rverOptions.configureBuckets[0].configs = [ '<WebsiteConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><IndexDocument><Suffix>index.html</Suffix></IndexDocument></WebsiteConfiguration>' ];
+        // convert API Gateway proxy syntax to Router path param syntax
+        let imgRequestPath = options.StaticWebsite.Map[0].replace('{proxy+}', ':proxy');
+        let bucketPath = options.StaticWebsite.Map[1];
+        update.status(`Mounting ${imgRequestPath} as proxy to local S3 Image Bucket`);
+        // Set up a proxy on the sandbox http server to our s3rver bucket
+        services.http.get(imgRequestPath, (req, res) => {
+          let object = req.params.proxy;
+          let pathOnBucket = bucketPath.replace('{proxy}', object);
+          res.statusCode = 301;
+          res.setHeader('Location', `http://${defaultLocalOptions.address}:${defaultLocalOptions.port}/${bukkit}${pathOnBucket}`);
+          res.end('\n');
+        });
+      }
+      s3Instance = new S3rver(s3rverOptions);
+      update.start('Starting up S3rver...');
+      await s3Instance.run();
+      update.done('S3rver for S3 Image Bucket started.');
+      if (options.lambdas && options.lambdas.length) {
+        const cwd = inventory.inv._project.src;
+        s3Instance.on('event', (e) => {
+          const record = e.Records[0];
+          const { eventName } = record;
+          let triggerParts = eventName.split(':');
+          let triggerEvt = triggerParts[0]; // i.e. ObjectCreated or ObjectRemoved
+          let triggerApi = triggerParts[1]; // i.e. *, Put, Post, Copy
+          update.status(`S3 ${triggerEvt}:${triggerApi} event for key ${record.s3.object.key} received!`);
+          let lambdasToTrigger = [];
+          options.lambdas.forEach(l => {
+            Object.keys(l.events).forEach(e => {
+              let eventParts = e.split(':');
+              // TODO: prefix and suffix support
+              let evt = eventParts[1]; // i.e. ObjectCreated or ObjectRemoved
+              let api = eventParts[2]; // i.e. *, Put, Post, Copy
+              if (evt === triggerEvt && (api === '*' || triggerApi === api)) {
+                if (!lambdasToTrigger.includes(l)) lambdasToTrigger.push(l);
+              }
+            });
+          });
+          if (lambdasToTrigger.length) {
+            lambdasToTrigger.forEach(lambda => {
+              const src = join(cwd, 'src', 'image-bucket', lambda.name);
+              update.status(`Invoking lambda ${src}...`);
+              invokeLambda({ inventory, src, payload: e }, (err) => {
+                if (err) update.error(`Error invoking image-bucket S3 trigger at ${src}!`, err);
+              });
+            });
+          }
+        });
+      }
+    },
+    end: async function ({ arc }) {
+      if (!arc['image-bucket']) return;
+      update.start('Shutting down S3rver for Image Bucket...');
+      try {
+        await s3Instance.close();
+        update.done('S3rver gracefully shut down.');
+      } catch (e) {
+        update.error('Error closing down S3rver!', e);
+      }
+    }
+  },
+  opts
 };
 
 function opts (pragma) {
@@ -290,4 +378,8 @@ function opts (pragma) {
 
 function lambdaPath (cwd, name) {
   return join(cwd, 'src', 'image-bucket', name.length ? name : 'lambda');
+}
+
+function bucketName (app) {
+  return `${app}-image-buket`;
 }

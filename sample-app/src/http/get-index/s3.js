@@ -8,7 +8,7 @@ const crypto = require('crypto');
 // * secretKey
 module.exports = function s3Credentials (config, params) {
   return {
-    endpoint: `https://${config.bucket}.s3.amazonaws.com`,
+    endpoint: process.env.NODE_ENV === 'testing' ? `http://localhost:4569/${config.bucket}` : `https://${config.bucket}.s3.amazonaws.com`,
     params: s3Params(config, params)
   };
 };

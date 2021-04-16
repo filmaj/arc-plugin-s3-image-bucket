@@ -25,9 +25,9 @@ module.exports = function form ({ redirect, bucket, accessKey, secretKey, region
 
   return `
   <form action=${doc.endpoint} method=post enctype=multipart/form-data>
-    ${Object.keys(doc.params).map(hidden).join('')} 
+    ${Object.keys(doc.params).map(hidden).join('')}
     <!-- do the thing -->
-    <input type=file name=file> 
+    <input type=file name=file>
     <input type=submit name=submit value=Upload>
   </form>`;
 };

@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
-    "@architect/architect": "^8.5.0-RC.3"
+    "@architect/architect": "^8.5.3"
   },
   "devDependencies": {},
   "scripts": {

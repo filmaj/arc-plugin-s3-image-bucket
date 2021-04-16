@@ -27,15 +27,16 @@
   "homepage": "https://github.com/filmaj/arc-plugin-s3-image-bucket/issues",
   "devDependencies": {
     "@architect/eslint-config": "^1.0.0",
-    "@architect/inventory": "^1.3.0-RC.1",
+    "@architect/inventory": "^1.3.1",
     "eslint": "^7.19.0",
     "fs-extra": "^9.1.0",
     "jasmine": "^3.6.4"
   },
   "dependencies": {
-    "@architect/package": "^6.2.0-RC.1",
-    "@architect/sandbox": "^3.4.0-RC.2",
-    "@architect/utils": "^2.0.5-RC.0"
+    "@architect/package": "^6.2.0",
+    "@architect/sandbox": "github:architect/sandbox#svc-dsc",
+    "@architect/utils": "^2.0.5",
+    "s3rver": "^3.6.1"
   },
   "eslintConfig": {
     "extends": "@architect/eslint-config",
