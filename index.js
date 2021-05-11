@@ -1,8 +1,6 @@
 const { updater } = require('@architect/utils');
 const update = updater('S3 Image Bucket', {});
 const { join } = require('path');
-const createLambdaJSON = require('@architect/package/createLambdaJSON');
-const invokeLambda = require('@architect/sandbox/invokeLambda');
 const S3rver = require('s3rver');
 let s3Instance = null;
 const defaultLocalOptions = {
@@ -16,7 +14,7 @@ const defaultLocalOptions = {
 };
 
 module.exports = {
-  variables: function s3ImageBucketVars ({ arc, stage /* , inventory */ }) {
+  variables: function s3ImageBucketVars ({ arc, stage }) {
     if (!arc['image-bucket']) return {};
     const isLocal = stage === 'testing';
     const bukkit = bucketName(arc.app);
@@ -27,7 +25,7 @@ module.exports = {
       secretKey: isLocal ? 'S3RVER' : { 'Fn::GetAtt': [ 'ImageBucketCreds', 'SecretAccessKey' ] }
     };
   },
-  package: function s3ImageBucketPackage ({ arc, cloudformation: cfn, /* stage = 'staging',*/ inventory }) {
+  package: function s3ImageBucketPackage ({ arc, cloudformation: cfn, inventory, createFunction }) {
     if (!arc['image-bucket']) return cfn;
     let options = opts(arc['image-bucket']);
     const bukkit = bucketName(arc.app);
@@ -199,7 +197,7 @@ module.exports = {
       options.lambdas.forEach(lambda => {
         // set up the lambdas themselves
         let src = lambdaPath(cwd, lambda.name);
-        let [ functionName, functionDefn ] = createLambdaJSON({ inventory, src });
+        let [ functionName, functionDefn ] = createFunction({ inventory, src });
         cfn.Resources[functionName] = functionDefn;
         // customize some things about the lambdas
         cfn.Resources[functionName].Properties.Runtime = 'nodejs10.x'; // the imagemagick layer requires node 10 :(
@@ -242,7 +240,7 @@ module.exports = {
     // `StaticWebsite` option and reflect the url based on that?
     return cfn;
   },
-  pluginFunctions: function s3ImageBucketLambdas ({ arc, inventory }) {
+  functions: function s3ImageBucketLambdas ({ arc, inventory }) {
     if (!arc['image-bucket']) return [];
     let options = opts(arc['image-bucket']);
     if (!options.lambdas || (Array.isArray(options.lambdas) && options.lambdas.length === 0)) return [];
@@ -258,7 +256,7 @@ module.exports = {
     });
   },
   sandbox: {
-    start: async function ({ arc, inventory, services }) {
+    start: async function ({ arc, inventory, services, invokeFunction }) {
       if (!arc['image-bucket']) return;
       const bukkit = bucketName(arc.app);
       let options = opts(arc['image-bucket']);
@@ -309,7 +307,7 @@ module.exports = {
             lambdasToTrigger.forEach(lambda => {
               const src = join(cwd, 'src', 'image-bucket', lambda.name);
               update.status(`Invoking lambda ${src}...`);
-              invokeLambda({ inventory, src, payload: e }, (err) => {
+              invokeFunction({ src, payload: e }, (err) => {
                 if (err) update.error(`Error invoking image-bucket S3 trigger at ${src}!`, err);
               });
             });

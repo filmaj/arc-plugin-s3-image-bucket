@@ -33,8 +33,6 @@
     "jasmine": "^3.6.4"
   },
   "dependencies": {
-    "@architect/package": "^6.2.0",
-    "@architect/sandbox": "github:architect/sandbox#svc-dsc",
     "@architect/utils": "^2.0.5",
     "s3rver": "^3.6.1"
   },
