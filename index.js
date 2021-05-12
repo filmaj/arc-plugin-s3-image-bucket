@@ -1,8 +1,10 @@
+const crypto = require('crypto');
 const { updater } = require('@architect/utils');
 const update = updater('S3 Image Bucket', {});
 const { join } = require('path');
 const S3rver = require('s3rver');
 let s3Instance = null;
+
 const defaultLocalOptions = {
   port: 4569,
   address: 'localhost',
@@ -17,20 +19,19 @@ module.exports = {
   variables: function s3ImageBucketVars ({ arc, stage }) {
     if (!arc['image-bucket']) return {};
     const isLocal = stage === 'testing';
-    const bukkit = bucketName(arc.app);
     // expose the key and secret for above user in the service map
     return {
       accessKey: isLocal ? 'S3RVER' : { Ref: 'ImageBucketCreds' },
-      name: bukkit,
+      name: isLocal ? getBucketName(arc.app) : { Ref: 'ImageBucket' },
       secretKey: isLocal ? 'S3RVER' : { 'Fn::GetAtt': [ 'ImageBucketCreds', 'SecretAccessKey' ] }
     };
   },
   package: function s3ImageBucketPackage ({ arc, cloudformation: cfn, inventory, createFunction }) {
     if (!arc['image-bucket']) return cfn;
     let options = opts(arc['image-bucket']);
-    const bukkit = bucketName(arc.app);
-    // also export as SSM parameter for service discovery purposes
-    // our glorious bucket
+    // we have to assign a name to the bucket otherwise we get a circular dependency between lambda, role and bucket.
+    // see https://aws.amazon.com/blogs/infrastructure-and-automation/handling-circular-dependency-errors-in-aws-cloudformation/
+    const bukkit = getBucketName(arc.app);
     cfn.Resources.ImageBucket = {
       Type: 'AWS::S3::Bucket',
       DependsOn: [],
@@ -64,7 +65,7 @@ module.exports = {
       Type: 'AWS::IAM::User',
       Properties: {}
     };
-    // grand it minimal permissions to upload
+    // grant it minimal permissions to upload
     cfn.Resources.UploadMinimalPolicy = {
       Type: 'AWS::IAM::Policy',
       DependsOn: 'ImageBucket',
@@ -93,23 +94,6 @@ module.exports = {
       DependsOn: 'ImageBucketUploader',
       Properties: {
         UserName: { Ref: 'ImageBucketUploader' }
-      }
-    };
-    // expose the key and secret for above user in the service map
-    cfn.Resources.ImageBucketKeyParam = {
-      Type: 'AWS::SSM::Parameter',
-      Properties: {
-        Type: 'String',
-        Name: { 'Fn::Sub': '/${AWS::StackName}/imagebucket/accessKey' },
-        Value: { Ref: 'ImageBucketCreds' }
-      }
-    };
-    cfn.Resources.ImageBucketSecretParam = {
-      Type: 'AWS::SSM::Parameter',
-      Properties: {
-        Type: 'String',
-        Name: { 'Fn::Sub': '/${AWS::StackName}/imagebucket/secretKey' },
-        Value: { 'Fn::GetAtt': [ 'ImageBucketCreds', 'SecretAccessKey' ] }
       }
     };
 
@@ -238,6 +222,8 @@ module.exports = {
     }
     // TODO: add the s3 bucket url to the cfn outputs. maybe take into account
     // `StaticWebsite` option and reflect the url based on that?
+    // see outputs of
+    // https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-s3.html#scenario-s3-bucket-website for ideas
     return cfn;
   },
   functions: function s3ImageBucketLambdas ({ arc, inventory }) {
@@ -258,7 +244,7 @@ module.exports = {
   sandbox: {
     start: async function ({ arc, inventory, services, invokeFunction }) {
       if (!arc['image-bucket']) return;
-      const bukkit = bucketName(arc.app);
+      const bukkit = getBucketName(arc.app);
       let options = opts(arc['image-bucket']);
       let s3rverOptions = { configureBuckets: [ { name: bukkit } ], ...defaultLocalOptions };
       // TODO: static website proxy support
@@ -378,6 +364,14 @@ function lambdaPath (cwd, name) {
   return join(cwd, 'src', 'image-bucket', name.length ? name : 'lambda');
 }
 
-function bucketName (app) {
-  return `${app}-image-buket`;
+// use a global for bucket name so that the various plugin methods, when running in sandbox, generate a bucket name once and reuse that
+let bukkit;
+function getBucketName (appname) {
+  if (bukkit) return bukkit;
+  bukkit = generateBucketName(appname);
+  return bukkit;
+}
+
+function generateBucketName (app) {
+  return `${app}-img-bucket-${crypto.randomBytes(4).toString('hex')}`;
 }
