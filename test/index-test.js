@@ -1,6 +1,7 @@
 const plugin = require('../');
 const { join } = require('path');
 const inventory = require('@architect/inventory');
+const { createFunction } = require('@architect/package');
 const fs = require('fs-extra');
 const sampleDir = join(__dirname, '..', 'sample-app');
 const appDir = join(__dirname, 'tmp');
@@ -31,14 +32,14 @@ describe('plugin packaging function', () => {
     it('should not modify the CloudFormation JSON', () => {
       const app = { ...arc };
       delete app['image-bucket'];
-      const output = plugin.package({ arc: app, cloudformation: cfn, inventory: inv });
+      const output = plugin.package({ arc: app, cloudformation: cfn, createFunction, inventory: inv });
       expect(JSON.stringify(output)).toBe(JSON.stringify(cfn));
     });
   });
   describe('when present in project', () => {
     it('should create a lambda function definition for each rule defined in the arc manifest', () => {
       const app = { ...arc };
-      const output = plugin.package({ arc: app, cloudformation: cfn, inventory: inv, stage: 'staging' });
+      const output = plugin.package({ arc: app, cloudformation: cfn, createFunction, inventory: inv, stage: 'staging' });
       expect(output.Resources.ImageBucketOnImageCreatePluginLambda).toBeDefined();
       expect(output.Resources.ImageBucketOnImageCreatePluginLambda.Properties.Layers.length).toEqual(1);
     });
