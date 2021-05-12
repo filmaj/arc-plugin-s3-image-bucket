@@ -48,7 +48,8 @@ This plugin creates a single S3 bucket and wires up any number of Lambdas that
 trigger on events created by the bucket. Below is a list of options that are to
 be specified unindented directly under the `@image-bucket` pragma in your `app.arc`
 file. Each option also accepts sub-options that can be specified indented under
-the option.
+the option. Check out the `app.arc` manifest under the `sample-app/` directory
+for an example.
 
 ### `StaticWebsite`
 
@@ -106,14 +107,24 @@ There is a sample application located under `sample-app/`. `cd` into that
 directory, `npm install` and you can run locally via `arc sandbox` or deploy to
 the internet via `arc deploy`.
 
+The sample application uses a Lambda trigger on uploads to the image bucket to
+resize uploaded images to a maximum 100 pixel width/height, and writes these
+thumbnails under the `thumb/` directory of the S3 image bucket this plugin
+creates.
+
+The sample app also configures an HTTP proxy such that requests to `img/*` get
+redirected to `thumb/*` on the S3 image bucket. 
+
 ### Testing Locally
 
-TODO! See issues on how to help.
+To try the sample out locally, cd into `sample-app`, run `npm install` and then
+run `arc sandbox`. Load `http://localhost:3333`, upload an image and see it
+resized to a max 100px width / height!
 
 ### Testing the Deployed Version
 
 To try the deployed sample out, cd into `sample-app`, run `npm install` and then
-run `arc deploy`. Load the URL outputted after `deploy`, upload an image, see it
+run `arc deploy`. Load the URL outputted after `deploy`, upload an image and see it
 resized to a max 100px width / height!
 
 # Contributing
