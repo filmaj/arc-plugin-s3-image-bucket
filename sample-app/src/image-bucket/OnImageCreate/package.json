@@ -1,7 +1,7 @@
 {
   "name": "upload",
   "dependencies": {
-    "@architect/functions": "github:architect/functions#372007baf8536e7f84259e83e3b2f5d118f59fc5",
+    "@architect/functions": "^3.13.12-RC.0",
     "file-type": "^12.3.0",
     "gm": "^1.23.1"
   }
