@@ -25,12 +25,12 @@ module.exports = {
       secretKey: isLocal ? 'S3RVER' : { 'Fn::GetAtt': [ 'ImageBucketCreds', 'SecretAccessKey' ] }
     };
   },
-  package: function s3ImageBucketPackage ({ arc, cloudformation: cfn, inventory, createFunction }) {
+  package: function s3ImageBucketPackage ({ arc, cloudformation: cfn, inventory, createFunction, stage }) {
     if (!arc['image-bucket']) return cfn;
     let options = opts(arc['image-bucket']);
     // we have to assign a name to the bucket otherwise we get a circular dependency between lambda, role and bucket.
     // see https://aws.amazon.com/blogs/infrastructure-and-automation/handling-circular-dependency-errors-in-aws-cloudformation/
-    const bukkit = getBucketName(arc.app);
+    const bukkit = getBucketName(arc.app, stage);
     cfn.Resources.ImageBucket = {
       Type: 'AWS::S3::Bucket',
       DependsOn: [],
@@ -140,13 +140,16 @@ module.exports = {
               type: 'http_proxy',
               httpMethod: 'GET',
               uri: {
-                'Fn::Sub': [
-                  'http://${bukkit}.s3.${AWS::Region}.amazonaws.com${proxy}',
+                'Fn::Join': [ '', [
+                  'http://',
+                  bukkit,
+                  '.s3.',
                   {
-                    bukkit,
-                    proxy: bucketRoute
+                    'Fn::Sub': [ '${AWS::Region}.amazonaws.com${proxy}', {
+                      proxy: bucketRoute
+                    } ]
                   }
-                ]
+                ] ]
               },
               connectionType: 'INTERNET',
               timeoutInMillis: 30000
@@ -209,7 +212,10 @@ module.exports = {
             Action: 'lambda:InvokeFunction',
             Principal: 's3.amazonaws.com',
             SourceAccount: { Ref: 'AWS::AccountId' },
-            SourceArn: `arn:aws:s3:::${bukkit}`
+            SourceArn: { 'Fn::Join': [ '', [
+              'arn:aws:s3:::',
+              bukkit
+            ] ] }
           }
         };
         cfn.Resources.ImageBucket.DependsOn.push(invokePerm);
@@ -243,7 +249,7 @@ module.exports = {
   sandbox: {
     start: async function ({ arc, inventory, services, invokeFunction }) {
       if (!arc['image-bucket']) return;
-      const bukkit = getBucketName(arc.app);
+      const bukkit = getBucketName(arc.app, 'testing');
       let options = opts(arc['image-bucket']);
       let s3rverOptions = { configureBuckets: [ { name: bukkit } ], ...defaultLocalOptions };
       // TODO: static website proxy support
@@ -367,10 +373,28 @@ function lambdaPath (cwd, name) {
 let bukkit;
 function getBucketName (appname, stage) {
   if (bukkit) return bukkit;
-  bukkit = generateBucketName(appname, stage);
+  bukkit = generateBucketName(appname[0], stage);
   return bukkit;
 }
 
 function generateBucketName (app, stage) {
-  return `${app}${stage}-img-bucket-\${AWS::AccountId}`;
+  // this can be tricky as S3 Bucket names can have a max 63 character length
+  // so the math ends up like this:
+  // - ${stage} can have a max length of 10 (for "production") - tho even this
+  //   is not exact as custom stage names can be provided and could be longer!
+  // - "-img-bucket-" is 12
+  // - account IDs are 12 digits
+  // = 34 characters
+  // that leaves 29 characters for the app name
+  // so lets cut it off a bit before that
+  let appLabel = app.substr(0, 24);
+  if (stage === 'testing') {
+    // In sandbox, we need to provide a simple string for the S3 mock server
+    return `${appLabel}-${stage}-img-bucket-123456789012`;
+  }
+  // For cloudformation, though, we need to use the Sub function to sub in the
+  // AWS account ID
+  return {
+    'Fn::Sub': `${appLabel}-${stage}-img-bucket-\${AWS::AccountId}`
+  };
 }
