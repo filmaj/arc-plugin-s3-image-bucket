@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const { updater } = require('@architect/utils');
 const update = updater('S3 Image Bucket', {});
 const { join } = require('path');
@@ -22,7 +21,7 @@ module.exports = {
     // expose the key and secret for above user in the service map
     return {
       accessKey: isLocal ? 'S3RVER' : { Ref: 'ImageBucketCreds' },
-      name: isLocal ? getBucketName(arc.app) : { Ref: 'ImageBucket' },
+      name: isLocal ? getBucketName(arc.app, stage) : { Ref: 'ImageBucket' },
       secretKey: isLocal ? 'S3RVER' : { 'Fn::GetAtt': [ 'ImageBucketCreds', 'SecretAccessKey' ] }
     };
   },
@@ -366,12 +365,12 @@ function lambdaPath (cwd, name) {
 
 // use a global for bucket name so that the various plugin methods, when running in sandbox, generate a bucket name once and reuse that
 let bukkit;
-function getBucketName (appname) {
+function getBucketName (appname, stage) {
   if (bukkit) return bukkit;
-  bukkit = generateBucketName(appname);
+  bukkit = generateBucketName(appname, stage);
   return bukkit;
 }
 
-function generateBucketName (app) {
-  return `${app}-img-bucket-${crypto.randomBytes(4).toString('hex')}`;
+function generateBucketName (app, stage) {
+  return `${app}${stage}-img-bucket-\${AWS::AccountId}`;
 }
