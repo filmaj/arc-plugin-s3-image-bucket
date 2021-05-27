@@ -1,6 +1,6 @@
 {
   "name": "arc-plugin-s3-image-bucket",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Architect (arc.codes) serverless framework plugin that creates an S3 bucket that users can upload to directly, with optional Lambda triggers",
   "main": "index.js",
   "scripts": {
