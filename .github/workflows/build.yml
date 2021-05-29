@@ -38,7 +38,7 @@ jobs:
         VER=`npm --version`; echo "npm ver:    $VER"
 
     - name: Install
-      run: npm install
+      uses: bahmutov/npm-install@v1
 
     - name: Test
       run: npm test
