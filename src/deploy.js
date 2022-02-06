@@ -1,21 +1,7 @@
-const { updater } = require('@architect/utils');
-const update = updater('S3 Image Bucket', {});
-const { join } = require('path');
-const S3rver = require('s3rver');
-let s3Instance = null;
-
-const defaultLocalOptions = {
-  port: 4569,
-  address: 'localhost',
-  directory: './buckets', // TODO maybe use os.tmpdir and clean up on shutdown?
-  accessKeyId: 'S3RVER',
-  secretAccessKey: 'S3RVER',
-  allowMismatchedSignatures: true,
-  resetOnClose: true
-};
+const { getBucketName, lambdaPath, opts } = require('./utils');
 
 module.exports = {
-  variables: function s3ImageBucketVars ({ arc, stage }) {
+  services: function s3ImageBucketVars ({ arc, stage }) {
     if (!arc['image-bucket']) return {};
     const isLocal = stage === 'testing';
     // expose the key and secret for above user in the service map
@@ -25,7 +11,7 @@ module.exports = {
       secretKey: isLocal ? 'S3RVER' : { 'Fn::GetAtt': [ 'ImageBucketCreds', 'SecretAccessKey' ] }
     };
   },
-  package: function s3ImageBucketPackage ({ arc, cloudformation: cfn, inventory, createFunction, stage }) {
+  start: function s3ImageBucketPackage ({ arc, cloudformation: cfn, inventory, createFunction, stage }) {
     if (!arc['image-bucket']) return cfn;
     let options = opts(arc['image-bucket']);
     // we have to assign a name to the bucket otherwise we get a circular dependency between lambda, role and bucket.
@@ -231,170 +217,4 @@ module.exports = {
     // https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-s3.html#scenario-s3-bucket-website for ideas
     return cfn;
   },
-  functions: function s3ImageBucketLambdas ({ arc, inventory }) {
-    if (!arc['image-bucket']) return [];
-    let options = opts(arc['image-bucket']);
-    if (!options.lambdas || (Array.isArray(options.lambdas) && options.lambdas.length === 0)) return [];
-    const cwd = inventory.inv._project.src;
-    return options.lambdas.map(lambda => {
-      return {
-        src: lambdaPath(cwd, lambda.name),
-        body: `exports.handler = async function (event) {
-  // remember this is nodev10 running in here!
-  console.log(event);
-}`
-      };
-    });
-  },
-  sandbox: {
-    start: async function ({ arc, inventory, services, invokeFunction }) {
-      if (!arc['image-bucket']) return;
-      const bukkit = getBucketName(arc.app, 'testing');
-      let options = opts(arc['image-bucket']);
-      let s3rverOptions = { configureBuckets: [ { name: bukkit } ], ...defaultLocalOptions };
-      // TODO: static website proxy support
-      if (options.StaticWebsite && options.StaticWebsite.Map) {
-        // Configure s3rver for static hosting
-        s3rverOptions.configureBuckets[0].configs = [ '<WebsiteConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><IndexDocument><Suffix>index.html</Suffix></IndexDocument></WebsiteConfiguration>' ];
-        // convert API Gateway proxy syntax to Router path param syntax
-        let imgRequestPath = options.StaticWebsite.Map[0].replace('{proxy+}', ':proxy');
-        let bucketPath = options.StaticWebsite.Map[1];
-        update.status(`Mounting ${imgRequestPath} as proxy to local S3 Image Bucket`);
-        // Set up a proxy on the sandbox http server to our s3rver bucket
-        services.http.get(imgRequestPath, (req, res) => {
-          let object = req.params.proxy;
-          let pathOnBucket = bucketPath.replace('{proxy}', object);
-          res.statusCode = 301;
-          res.setHeader('Location', `http://${defaultLocalOptions.address}:${defaultLocalOptions.port}/${bukkit}${pathOnBucket}`);
-          res.end('\n');
-        });
-      }
-      s3Instance = new S3rver(s3rverOptions);
-      update.start('Starting up S3rver...');
-      await s3Instance.run();
-      update.done('S3rver for S3 Image Bucket started.');
-      if (options.lambdas && options.lambdas.length) {
-        const cwd = inventory.inv._project.src;
-        s3Instance.on('event', (e) => {
-          const record = e.Records[0];
-          const { eventName } = record;
-          let triggerParts = eventName.split(':');
-          let triggerEvt = triggerParts[0]; // i.e. ObjectCreated or ObjectRemoved
-          let triggerApi = triggerParts[1]; // i.e. *, Put, Post, Copy
-          update.status(`S3 ${triggerEvt}:${triggerApi} event for key ${record.s3.object.key} received!`);
-          let lambdasToTrigger = [];
-          options.lambdas.forEach(l => {
-            Object.keys(l.events).forEach(e => {
-              let eventParts = e.split(':');
-              // TODO: prefix and suffix support
-              let evt = eventParts[1]; // i.e. ObjectCreated or ObjectRemoved
-              let api = eventParts[2]; // i.e. *, Put, Post, Copy
-              if (evt === triggerEvt && (api === '*' || triggerApi === api)) {
-                if (!lambdasToTrigger.includes(l)) lambdasToTrigger.push(l);
-              }
-            });
-          });
-          if (lambdasToTrigger.length) {
-            lambdasToTrigger.forEach(lambda => {
-              const src = join(cwd, 'src', 'image-bucket', lambda.name);
-              update.status(`Invoking lambda ${src}...`);
-              invokeFunction({ src, payload: e }, (err) => {
-                if (err) update.error(`Error invoking image-bucket S3 trigger at ${src}!`, err);
-              });
-            });
-          }
-        });
-      }
-    },
-    end: async function ({ arc }) {
-      if (!arc['image-bucket']) return;
-      update.start('Shutting down S3rver for Image Bucket...');
-      try {
-        await s3Instance.close();
-        update.done('S3rver gracefully shut down.');
-      } catch (e) {
-        update.error('Error closing down S3rver!', e);
-      }
-    }
-  },
-  opts
 };
-
-function opts (pragma) {
-  return pragma.reduce((obj, opt) => {
-    if (Array.isArray(opt)) {
-      if (opt.length > 2) {
-        obj[opt[0]] = opt.slice(1);
-      } else {
-        obj[opt[0]] = opt[1];
-      }
-    } else if (typeof opt === 'string') {
-      obj[opt] = true;
-    } else {
-      let key = Object.keys(opt)[0];
-      if (key.startsWith('CORS')) {
-        if (!obj.CORS) obj.CORS = [];
-        let corsRules = opt[key];
-        Object.keys(corsRules).forEach(k => {
-          // All CORS options must be arrays, even for singular items
-          if (typeof corsRules[k] === 'string') corsRules[k] = [ corsRules[k] ];
-        });
-        obj.CORS.push(opt[key]);
-      } else if (key.startsWith('Lambda')) {
-        if (!obj.lambdas) obj.lambdas = [];
-        let lambda = {
-          name: key.replace(/^Lambda/, ''),
-          events: {}
-        };
-        let props = opt[key];
-        let lambdaKeys = Object.keys(props);
-        lambdaKeys.forEach(eventName => {
-          let filterPairs = props[eventName];
-          lambda.events[eventName] = [];
-          for (let i = 0; i < filterPairs.length - 1; i++) {
-            if (i % 2 === 1) continue;
-            lambda.events[eventName].push([ filterPairs[i], filterPairs[i + 1] ]);
-          }
-        });
-        obj.lambdas.push(lambda);
-      } else {
-        obj[key] = opt[key];
-      }
-    }
-    return obj;
-  }, {});
-}
-
-function lambdaPath (cwd, name) {
-  return join(cwd, 'src', 'image-bucket', name.length ? name : 'lambda');
-}
-
-// use a global for bucket name so that the various plugin methods, when running in sandbox, generate a bucket name once and reuse that
-let bukkit;
-function getBucketName (appname, stage) {
-  if (bukkit) return bukkit;
-  bukkit = generateBucketName(appname[0], stage);
-  return bukkit;
-}
-
-function generateBucketName (app, stage) {
-  // this can be tricky as S3 Bucket names can have a max 63 character length
-  // so the math ends up like this:
-  // - ${stage} can have a max length of 10 (for "production") - tho even this
-  //   is not exact as custom stage names can be provided and could be longer!
-  // - "-img-bucket-" is 12
-  // - account IDs are 12 digits
-  // = 34 characters
-  // that leaves 29 characters for the app name
-  // so lets cut it off a bit before that
-  let appLabel = app.substr(0, 24);
-  if (stage === 'testing') {
-    // In sandbox, we need to provide a simple string for the S3 mock server
-    return `${appLabel}-${stage}-img-bucket-123456789012`;
-  }
-  // For cloudformation, though, we need to use the Sub function to sub in the
-  // AWS account ID
-  return {
-    'Fn::Sub': `${appLabel}-${stage}-img-bucket-\${AWS::AccountId}`
-  };
-}

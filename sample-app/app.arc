@@ -20,3 +20,4 @@ LambdaOnImageCreate
 
 @plugins
 arc-plugin-s3-image-bucket
+  src ../

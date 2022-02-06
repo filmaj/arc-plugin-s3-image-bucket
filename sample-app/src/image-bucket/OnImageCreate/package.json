@@ -1,8 +1,0 @@
-{
-  "name": "upload",
-  "dependencies": {
-    "@architect/functions": "^3.13.12-RC.0",
-    "file-type": "^12.3.0",
-    "gm": "^1.23.1"
-  }
-}

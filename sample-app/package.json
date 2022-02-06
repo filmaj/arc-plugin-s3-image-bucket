@@ -4,9 +4,11 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
-    "@architect/architect": "^8.6.0"
+    "@architect/architect": "^10.0.0-RC.3",
+    "@architect/functions": "^5.0.0-RC.1",
+    "file-type": "^17.1.1",
+    "gm": "^1.23.1"
   },
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

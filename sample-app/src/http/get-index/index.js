@@ -4,7 +4,9 @@ let form = require('./form');
 
 async function getIndex (req) {
   let services = await arc.services();
-  const redirect = `http${process.env.NODE_ENV === 'testing' ? '' : 's'}://${req.headers.Host || req.headers.host}/success`;
+  let local = process.env.ARC_ENV === 'testing';
+  let prot = local ? 'http' : 'https';
+  const redirect = `${prot}://${req.headers.Host || req.headers.host}/success`;
   const { name, accessKey, secretKey } = services['arc-plugin-s3-image-bucket'];
   const region = process.env.AWS_REGION;
   const upload = form({ redirect, bucket: name, accessKey, secretKey, region });
