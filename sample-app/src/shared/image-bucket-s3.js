@@ -2,7 +2,7 @@ const aws = require('aws-sdk');
 
 module.exports = async function (arc) {
   let config;
-  if (process.env.NODE_ENV === 'testing') {
+  if (process.env.ARC_ENV === 'testing') {
     let services = await arc.services();
     const { accessKey, secretKey } = services['arc-plugin-s3-image-bucket'];
     config = {
