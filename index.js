@@ -276,6 +276,7 @@ module.exports = {
       if (options.lambdas && options.lambdas.length) {
         const cwd = inventory.inv._project.src;
         s3Instance.on('event', (e) => {
+          console.log('s3rver event', e);
           const record = e.Records[0];
           const { eventName } = record;
           let triggerParts = eventName.split(':');
