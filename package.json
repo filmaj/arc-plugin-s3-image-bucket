@@ -37,6 +37,9 @@
     "@architect/utils": "^2.0.5",
     "s3rver": "3.6.1"
   },
+  "peerDependencies": {
+    "@architect/architect": ">=8.6.0 <10"
+  },
   "eslintConfig": {
     "extends": "@architect/eslint-config",
     "rules": {

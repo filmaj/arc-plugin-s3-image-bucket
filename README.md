@@ -19,6 +19,10 @@ repos, which are based on [Leonid Shevtov's deep dive into enabling direct-from-
 S3 uploads using browser-based POST requests to
 S3](https://leonid.shevtsov.me/post/demystifying-s3-browser-upload/).
 
+## Requirements
+
+⚠️ At this time this plugin only works with Architect 8.6.0 up to 9.x; Architect 10 is **not** supported.
+
 ## Installation
 
 1. Install this plugin: `npm i arc-plugin-s3-image-bucket`
@@ -113,7 +117,7 @@ thumbnails under the `thumb/` directory of the S3 image bucket this plugin
 creates.
 
 The sample app also configures an HTTP proxy such that requests to `img/*` get
-redirected to `thumb/*` on the S3 image bucket. 
+redirected to `thumb/*` on the S3 image bucket.
 
 ### Testing Locally
 
