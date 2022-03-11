@@ -276,7 +276,6 @@ module.exports = {
       if (options.lambdas && options.lambdas.length) {
         const cwd = inventory.inv._project.src;
         s3Instance.on('event', (e) => {
-          console.log('s3rver event', e);
           const record = e.Records[0];
           const { eventName } = record;
           let triggerParts = eventName.split(':');
@@ -285,12 +284,12 @@ module.exports = {
           update.status(`S3 ${triggerEvt}:${triggerApi} event for key ${record.s3.object.key} received!`);
           let lambdasToTrigger = [];
           options.lambdas.forEach(l => {
-            Object.keys(l.events).forEach(e => {
-              let eventParts = e.split(':');
-              // TODO: prefix and suffix support
+            Object.entries(l.events).forEach(([event, filters]) => {
+              let eventParts = event.split(':');
+              let filterMatches = findFilterMatches({ filters, record });
               let evt = eventParts[1]; // i.e. ObjectCreated or ObjectRemoved
               let api = eventParts[2]; // i.e. *, Put, Post, Copy
-              if (evt === triggerEvt && (api === '*' || triggerApi === api)) {
+              if (evt === triggerEvt && (api === '*' || triggerApi === api) && filterMatches) {
                 if (!lambdasToTrigger.includes(l)) lambdasToTrigger.push(l);
               }
             });
@@ -321,6 +320,27 @@ module.exports = {
   opts
 };
 
+function findFilterMatches ({ filters, record }) {
+  // return true if no filters are applied
+  if (filters.length === 0) {
+    return true;
+  }
+
+  const prefixFilter = filters.filter(([key]) => key == 'prefix');
+  if (prefixFilter.length > 1) {
+    throw 'More than one prefix is not allowed.';
+  }
+  const suffixFilter = filters.filter(([key]) => key == 'suffix');
+  if (suffixFilter.length > 1) {
+    throw 'More than one suffix is not allowed.';
+  }
+
+  let prefix = prefixFilter.length < 1 || prefixFilter[0][1] === record.s3.object.key.split('/')[0];
+  let suffix = suffixFilter.length < 1 || suffixFilter[0][1] === record.s3.object.key.split('.').pop();
+
+  return prefix && suffix;
+}
+
 function opts (pragma) {
   return pragma.reduce((obj, opt) => {
     if (Array.isArray(opt)) {
@@ -348,13 +368,17 @@ function opts (pragma) {
           events: {}
         };
         let props = opt[key];
-        let lambdaKeys = Object.keys(props);
+        // If the filter options for an event exist, the props are returned as an array instead of an object.
+        let hasFilters = Array.isArray(props);
+        let lambdaKeys = hasFilters ? props : Object.keys(props);
         lambdaKeys.forEach(eventName => {
-          let filterPairs = props[eventName];
           lambda.events[eventName] = [];
-          for (let i = 0; i < filterPairs.length - 1; i++) {
-            if (i % 2 === 1) continue;
-            lambda.events[eventName].push([ filterPairs[i], filterPairs[i + 1] ]);
+          if (!hasFilters) {
+            let filterPairs = props[eventName];
+            for (let i = 0; i < filterPairs.length - 1; i++) {
+              if (i % 2 === 1) continue;
+              lambda.events[eventName].push([filterPairs[i], filterPairs[i + 1]]);
+            }
           }
         });
         obj.lambdas.push(lambda);
